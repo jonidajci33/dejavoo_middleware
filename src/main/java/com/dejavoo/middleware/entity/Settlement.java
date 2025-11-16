@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "settlements", indexes = {
+@Table(name = "settlement", indexes = {
     @Index(name = "idx_settlement_id", columnList = "settlement_id", unique = true),
     @Index(name = "idx_merchant_id", columnList = "merchant_id")
 })
@@ -28,8 +28,9 @@ public class Settlement {
     @Column(name = "settlement_id", nullable = false, unique = true, length = 100)
     private String settlementId;
 
-    @Column(name = "merchant_id", nullable = false, length = 100)
-    private String merchantId;
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "merchant_id", referencedColumnName = "id")
+    private Merchant merchant;
 
     @Column(name = "settlement_date", nullable = false)
     private LocalDate settlementDate;

@@ -3,6 +3,7 @@ package com.dejavoo.middleware.service;
 import com.dejavoo.middleware.dto.SettlementWebhookRequest;
 import com.dejavoo.middleware.dto.SettlementWebhookResponse;
 import com.dejavoo.middleware.entity.Settlement;
+import com.dejavoo.middleware.repository.MerchantRepository;
 import com.dejavoo.middleware.repository.SettlementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,8 @@ public class SettlementService {
 
     private final SettlementRepository settlementRepository;
 
+    private final MerchantService merchantService;
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     /**
@@ -29,7 +32,7 @@ public class SettlementService {
      * @return SettlementWebhookResponse indicating success or failure
      */
     @Transactional
-    public SettlementWebhookResponse processSettlement(SettlementWebhookRequest request, String merchantId) {
+    public SettlementWebhookResponse processSettlement(SettlementWebhookRequest request, Long merchantId) {
         try {
             log.info("Processing settlement webhook for merchant: {}, settlement ID: {}",
                     merchantId, request.getId());
@@ -46,7 +49,7 @@ public class SettlementService {
             // Create and save new settlement record
             Settlement settlement = Settlement.builder()
                     .settlementId(request.getId())
-                    .merchantId(merchantId)
+                    .merchant(merchantService.findMerchantById(merchantId))
                     .settlementDate(settlementDate)
                     .settlementAmount(request.getSettlementAmount())
                     .batchNumber(request.getBatchNumber())

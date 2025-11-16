@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "merchant_users", indexes = {
+@Table(name = "merchant_dejavoo_users", indexes = {
     @Index(name = "idx_username", columnList = "username", unique = true)
 })
 @Data
@@ -28,8 +28,9 @@ public class MerchantUser {
     @Column(name = "password", nullable = false, length = 255)
     private String password;
 
-    @Column(name = "merchant_id", length = 100)
-    private String merchantId;
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "merchant_id", referencedColumnName = "id")
+    private Merchant merchant;
 
     @Column(name = "active", nullable = false)
     @Builder.Default

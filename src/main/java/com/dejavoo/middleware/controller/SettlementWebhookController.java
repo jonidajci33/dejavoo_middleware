@@ -26,7 +26,7 @@ public class SettlementWebhookController {
      */
     @PostMapping("/{merchantId}")
     public ResponseEntity<SettlementWebhookResponse> handleSettlementWebhook(
-            @PathVariable String merchantId,
+            @PathVariable Long merchantId,
             @Valid @RequestBody SettlementWebhookRequest request) {
 
         log.info("Received settlement webhook for merchant: {}, settlement ID: {}",
