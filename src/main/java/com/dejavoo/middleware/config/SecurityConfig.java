@@ -20,11 +20,8 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/webhook/health", "/h2-console/**").permitAll()
-                .requestMatchers("/webhook/**").authenticated()
                 .anyRequest().permitAll()
             )
-            .httpBasic(httpBasic -> {})
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )

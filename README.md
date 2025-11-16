@@ -5,8 +5,7 @@ A Spring Boot application that receives and processes settlement webhooks from D
 ## Features
 
 - REST API endpoint for receiving settlement webhooks
-- Basic Authentication for secure webhook reception
-- **HMAC-SHA512 signature verification** for webhook integrity
+- **HMAC-SHA512 signature verification** for webhook authentication and integrity
 - Duplicate settlement detection
 - Automatic settlement record persistence
 - H2 in-memory database (easily switchable to PostgreSQL)
@@ -31,7 +30,6 @@ POST /api/webhook/{merchantId}
 Receives settlement webhook notifications and stores settlement data.
 
 **Headers:**
-- `Authorization: Basic <base64-encoded-credentials>`
 - `Content-Type: application/json`
 
 **Path Parameters:**
@@ -160,77 +158,15 @@ The `settlements` table stores settlement records:
 - Unique index on `settlement_id`
 - Index on `merchant_id`
 
-### Merchant Users Table
-
-See **Security** section below for the `merchant_users` table schema (stores authentication credentials).
-
 ### Merchant Secrets Table
 
-See **HMAC Signature Verification** section below for the `merchant_secrets` table schema (stores HMAC secret keys).
+See **Security** section below for the `merchant_secrets` table schema (stores HMAC secret keys).
 
 ## Security
 
-The application uses HTTP Basic Authentication with **database-backed credentials**. User credentials are stored in the `merchant_users` table and verified against the database on each request.
+The application uses **HMAC-SHA512 signature verification** as the sole authentication mechanism. Each webhook request must include a valid HMAC signature that is verified against merchant-specific secret keys stored in the database.
 
-### User Management
-
-User credentials are managed by another application and stored in the `merchant_users` table. The password must be **BCrypt encoded** before storing in the database.
-
-#### Database Schema for Users
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | BIGINT | Primary key (auto-increment) |
-| username | VARCHAR(100) | Unique username for authentication |
-| password | VARCHAR(255) | BCrypt encoded password |
-| merchant_id | VARCHAR(100) | Associated merchant ID |
-| active | BOOLEAN | User active status (default: true) |
-| created_at | TIMESTAMP | Record creation timestamp |
-| updated_at | TIMESTAMP | Record update timestamp |
-
-### Creating Users
-
-Users should be created by your external application. Here's an example SQL insert with BCrypt encoded password:
-
-```sql
--- Example: username='testuser', password='testpass123' (BCrypt encoded)
-INSERT INTO merchant_users (username, password, merchant_id, active, created_at, updated_at)
-VALUES (
-    'testuser',
-    '$2a$10$N9qo8uLOickgx2ZMRZoMye1cGJZxnCKfJrWVhKqNLKHM8qnBDqQri',
-    'MERCHANT123',
-    true,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-);
-```
-
-### Generating BCrypt Password Hash
-
-You can use the BCryptPasswordEncoder in Java to generate password hashes:
-
-```java
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-
-public class PasswordHashGenerator {
-    public static void main(String[] args) {
-        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-        String rawPassword = "your_password_here";
-        String encodedPassword = encoder.encode(rawPassword);
-        System.out.println("BCrypt Hash: " + encodedPassword);
-    }
-}
-```
-
-Or use online tools or command-line utilities:
-
-```bash
-# Using htpasswd (Apache utilities)
-htpasswd -bnBC 10 "" your_password | tr -d ':\n'
-
-# Using Python
-python -c 'import bcrypt; print(bcrypt.hashpw(b"your_password", bcrypt.gensalt()).decode())'
-```
+**No Basic Authentication or other authentication is required** - the HMAC signature provides both authentication and integrity verification.
 
 ## HMAC Signature Verification
 
@@ -318,16 +254,16 @@ VALUES (
 5. **If signatures match**: Request is processed
 6. **If signatures don't match**: Returns `400 Bad Request` with "Invalid signature" error
 
-**Important**: Without a valid signature, the webhook will be rejected even if Basic Authentication succeeds.
+**Important**: Without a valid signature, the webhook will be rejected. HMAC signature verification is the only authentication mechanism.
 
 ## Testing with curl
 
 ```bash
 curl -X POST http://localhost:8080/api/webhook/MERCHANT123 \
-  -H "Authorization: Basic Y2xudGtleV9SbkVfWGV5Y2lwVUVPd2VwRzF3UldBT1pDUXREQzdzblEwMw==" \
   -H "Content-Type: application/json" \
   -d '{
-    "id": "f5b15dac-359f-439d-8977-a0226c467dc7",
+    "id": "46f69dec-fce4-444c-ba7b-64a11b9357a3",
+    "signature": "464ebd627992eb451b8d8a4075d6869c685e6ce7552535318a607f7ee68cccde0856fc78ae9e84f88778c4f935b4953cc61764e3f4152032d1c0e12dd5280ff0",
     "eventType": "Settlement",
     "subEventType": "ClosedBatch",
     "batchNumber": "469",
