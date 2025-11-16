@@ -2,7 +2,9 @@ package com.dejavoo.middleware.service;
 
 import com.dejavoo.middleware.dto.SettlementWebhookRequest;
 import com.dejavoo.middleware.dto.SettlementWebhookResponse;
+import com.dejavoo.middleware.entity.MerchantSecret;
 import com.dejavoo.middleware.entity.Settlement;
+import com.dejavoo.middleware.repository.MerchantSecretRepository;
 import com.dejavoo.middleware.repository.SettlementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +22,8 @@ import java.time.format.DateTimeParseException;
 public class SettlementService {
 
     private final SettlementRepository settlementRepository;
+    private final MerchantSecretRepository merchantSecretRepository;
+    private final HmacSignatureService hmacSignatureService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -33,6 +38,12 @@ public class SettlementService {
         try {
             log.info("Processing settlement webhook for merchant: {}, settlement ID: {}",
                     merchantId, request.getId());
+
+            // Verify HMAC signature
+            if (!verifySignature(request, merchantId)) {
+                log.error("HMAC signature verification failed for merchant: {}", merchantId);
+                return SettlementWebhookResponse.error("Invalid signature");
+            }
 
             // Check if settlement has already been processed
             if (settlementRepository.existsBySettlementId(request.getId())) {
@@ -92,5 +103,48 @@ public class SettlementService {
      */
     public boolean isSettlementProcessed(String settlementId) {
         return settlementRepository.existsBySettlementId(settlementId);
+    }
+
+    /**
+     * Verify HMAC signature for the webhook request
+     * @param request the settlement webhook request
+     * @param merchantId the merchant ID
+     * @return true if signature is valid, false otherwise
+     */
+    private boolean verifySignature(SettlementWebhookRequest request, String merchantId) {
+        try {
+            // Get merchant secret key from database
+            Optional<MerchantSecret> merchantSecretOpt = merchantSecretRepository
+                    .findByMerchantIdAndActive(merchantId, true);
+
+            if (merchantSecretOpt.isEmpty()) {
+                log.error("No active HMAC secret key found for merchant: {}", merchantId);
+                return false;
+            }
+
+            String secretKey = merchantSecretOpt.get().getHmacSecretKey();
+
+            // Verify signature using HMAC service
+            return hmacSignatureService.verifySignature(
+                    request.getSignature(),
+                    request.getId(),
+                    request.getTpn(),
+                    request.getVersion(),
+                    request.getVersionCreatedDt(),
+                    request.getEventType(),
+                    request.getSubEventType(),
+                    request.getRequestType(),
+                    request.getBatchNumber(),
+                    request.getSettlementDate(),
+                    request.getSettlementCount(),
+                    request.getSettlementAmount(),
+                    request.getSettlementTxnDetails(),
+                    secretKey
+            );
+
+        } catch (Exception e) {
+            log.error("Error verifying HMAC signature for merchant: {}", merchantId, e);
+            return false;
+        }
     }
 }
