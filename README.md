@@ -101,10 +101,6 @@ server.servlet.context-path=/api
 
 # Database Configuration (H2 for development)
 spring.datasource.url=jdbc:h2:mem:dejavoo_db
-
-# Security - Basic Auth Credentials
-security.basic.auth.username=clntkey_RnE_XeycipUEOwepG1wRWAOZCQtDC7snQ03
-security.basic.auth.password=
 ```
 
 ### PostgreSQL Configuration
@@ -161,11 +157,66 @@ The application creates a `settlements` table with the following structure:
 
 ## Security
 
-The application uses HTTP Basic Authentication. Configure credentials in `application.properties`:
+The application uses HTTP Basic Authentication with **database-backed credentials**. User credentials are stored in the `merchant_users` table and verified against the database on each request.
 
-```properties
-security.basic.auth.username=your_username
-security.basic.auth.password=your_password
+### User Management
+
+User credentials are managed by another application and stored in the `merchant_users` table. The password must be **BCrypt encoded** before storing in the database.
+
+#### Database Schema for Users
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT | Primary key (auto-increment) |
+| username | VARCHAR(100) | Unique username for authentication |
+| password | VARCHAR(255) | BCrypt encoded password |
+| merchant_id | VARCHAR(100) | Associated merchant ID |
+| active | BOOLEAN | User active status (default: true) |
+| created_at | TIMESTAMP | Record creation timestamp |
+| updated_at | TIMESTAMP | Record update timestamp |
+
+### Creating Users
+
+Users should be created by your external application. Here's an example SQL insert with BCrypt encoded password:
+
+```sql
+-- Example: username='testuser', password='testpass123' (BCrypt encoded)
+INSERT INTO merchant_users (username, password, merchant_id, active, created_at, updated_at)
+VALUES (
+    'testuser',
+    '$2a$10$N9qo8uLOickgx2ZMRZoMye1cGJZxnCKfJrWVhKqNLKHM8qnBDqQri',
+    'MERCHANT123',
+    true,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+);
+```
+
+### Generating BCrypt Password Hash
+
+You can use the BCryptPasswordEncoder in Java to generate password hashes:
+
+```java
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+public class PasswordHashGenerator {
+    public static void main(String[] args) {
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        String rawPassword = "your_password_here";
+        String encodedPassword = encoder.encode(rawPassword);
+        System.out.println("BCrypt Hash: " + encodedPassword);
+    }
+}
+```
+
+Or use online tools or command-line utilities:
+
+```bash
+# Using htpasswd (Apache utilities)
+htpasswd -bnBC 10 "" your_password | tr -d ':\n'
+
+# Using Python
+python -c 'import bcrypt; print(bcrypt.hashpw(b"your_password", bcrypt.gensalt()).decode())'
 ```
 
 ## Testing with curl
